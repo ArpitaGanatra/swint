@@ -31,7 +31,17 @@ export async function getStructuredResponse(userInput: string) {
     "srcChain": "base",
     "dstChain": "Arbitrum",
     "amount": "100000000",
-    "walletAddress": "0xYourWalletAddress",
+    "enableEstimate": "true",
+    "auctionStartAmount": "100000000"
+  }
+
+Example input: "I want to swap 100 USDC Base with ETH on Arbitrum and send it to 0x1234567890123456789012345678901234567890"
+Example output: 
+  {
+    "srcChain": "base",
+    "dstChain": "Arbitrum",
+    "amount": "100000000",
+    "walletAddress": "0x1234567890123456789012345678901234567890",
     "enableEstimate": "true",
     "auctionStartAmount": "100000000"
   }

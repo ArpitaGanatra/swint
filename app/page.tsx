@@ -7,6 +7,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useEffect, useState } from "react";
 import { getStructuredResponse } from "@/utils/phalaRes";
+import chainId from "@/constants/chainId";
+import { ethers } from "ethers";
+import { hyperlaneABI } from "@/abi/hyperlaneABI";
+import { alfaContract, fujiContract } from "@/constants/address";
 
 type Message = {
   _id: string;
@@ -14,6 +18,20 @@ type Message = {
   sender: "user" | "ai";
   walletAddress: string;
 };
+
+type HyperlaneSwapData = {
+  chain1: number;
+  chain2: number;
+  amount: number;
+  receiverAddress: string;
+};
+
+const celoProvider = new ethers.JsonRpcProvider(
+  "https://alfajores-forno.celo-testnet.org"
+);
+const fujiProvider = new ethers.JsonRpcProvider(
+  "https://ava-testnet.public.blastapi.io/ext/bc/C/rpc"
+);
 
 export default function Home() {
   const { address: walletAddress, isConnected } = useAppKitAccount();
@@ -63,33 +81,82 @@ export default function Home() {
     }
   };
 
+  const hyperlaneWriteData = async (data: HyperlaneSwapData) => {
+    if (data.chain1 == 44787) {
+      const signer = new ethers.Wallet(
+        process.env.NEXT_PUBLIC_PRIVATE_KEY || "",
+        celoProvider
+      );
+
+      const contractWrite = new ethers.Contract(
+        alfaContract,
+        hyperlaneABI,
+        signer
+      );
+      const addressAsBytes32 = ethers.zeroPadValue(
+        ethers.getAddress(data.receiverAddress),
+        32
+      );
+      const writen = await contractWrite.transferRemote(
+        data.chain1,
+        addressAsBytes32,
+        data.amount,
+        { value: 1000000 }
+      );
+      console.log("******* Written ********" + writen.hash);
+    } else {
+      const signer = new ethers.Wallet(
+        process.env.NEXT_PUBLIC_PRIVATE_KEY || "",
+        fujiProvider
+      );
+
+      const contractWrite = new ethers.Contract(
+        fujiContract,
+        hyperlaneABI,
+        signer
+      );
+      const addressAsBytes32 = ethers.zeroPadValue(
+        ethers.getAddress(data.receiverAddress),
+        32
+      );
+      const writen = await contractWrite.transferRemote(
+        data.chain2,
+        addressAsBytes32,
+        data.amount,
+        { value: 1000000 }
+      );
+      console.log("Written" + writen.hash);
+    }
+  };
+
+  const handleSignAndConfirm = async (data: any) => {
+    console.log("sign and confirm", data);
+    const {
+      srcChain: srcChainName,
+      dstChain: dstChainName,
+      amount,
+      receiverAddress,
+    } = data;
+    const srcChain =
+      chainId[srcChainName.toLowerCase() as keyof typeof chainId];
+    const dstChain =
+      chainId[dstChainName.toLowerCase() as keyof typeof chainId];
+    console.log(srcChain, dstChain);
+
+    hyperlaneWriteData({
+      chain1: srcChainName,
+      chain2: dstChainName,
+      amount: amount,
+      receiverAddress: receiverAddress ? receiverAddress : walletAddress,
+    });
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#F8F8F8]">
       {/* Main content */}
       <main className="flex-1 p-6 h-full">
         <ScrollArea className="h-full">
           <div className="max-w-3xl mx-auto space-y-6">
-            {/* Receiver message */}
-            {/* <div className="flex items-end space-x-2">
-              <Avatar>
-                <AvatarImage src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQc3fTjOEQnBpWJgs3Yh6BXd13yPjchG8nUNA&s" />
-                <AvatarFallback>AI</AvatarFallback>
-              </Avatar>
-              <div className="bg-white p-4 rounded-2xl rounded-bl-none shadow-sm max-w-xs md:max-w-md text-[#333333]">
-                <p className="text-sm">Hello! How can I assist you today?</p>
-              </div>
-            </div> */}
-            {/* User message */}
-            {/* <div className="flex items-end justify-end space-x-2">
-              <div className="bg-[#007AFF] p-4 rounded-2xl rounded-br-none shadow-sm max-w-xs md:max-w-md text-white">
-                <p className="text-sm">Hi! I have a question about coding.</p>
-              </div>
-              <Avatar>
-                <AvatarImage src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQc3fTjOEQnBpWJgs3Yh6BXd13yPjchG8nUNA&s" />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
-            </div> */}
-
             {Array.isArray(messages) &&
               messages.map((message) => (
                 <div
@@ -111,8 +178,29 @@ export default function Home() {
                         : "bg-white text-[#333333] rounded-bl-none"
                     }`}
                   >
-                    <p className="text-sm">{message.text}</p>
-                    {message.sender === "ai" && <Button>Sign & confirm</Button>}
+                    {message.sender === "ai" ? (
+                      <pre>{`Please confirm following details : \n
+Source Chain : ${JSON.parse(message.text).srcChain}
+Destination Chain : ${JSON.parse(message.text).dstChain}
+Amount : ${JSON.parse(message.text).amount}
+Receiver Address : ${JSON.parse(message.text).receiverAddress}
+Enable Estimate : ${JSON.parse(message.text).enableEstimate}
+Auction Start Amount : ${JSON.parse(message.text).auctionStartAmount}
+                        `}</pre>
+                    ) : (
+                      <p className="text-sm">{message.text}</p>
+                    )}
+
+                    {message.sender === "ai" &&
+                      messages[messages.length - 1] === message && (
+                        <Button
+                          onClick={() =>
+                            handleSignAndConfirm(JSON.parse(message.text))
+                          }
+                        >
+                          Sign & confirm
+                        </Button>
+                      )}
                   </div>
                   {message?.sender === "user" && (
                     <Avatar>
