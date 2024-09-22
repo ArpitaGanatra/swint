@@ -3,8 +3,8 @@ const chainId = {
   base: 8453,
   sepolia: 11155111,
   eth: 1,
-  fujiDomain: 43113,
-  alfajoresDomain: 44787,
+  binance: 56,
+  avax: 43114,
 };
 
 export default chainId;

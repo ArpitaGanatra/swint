@@ -10,7 +10,15 @@ import { getStructuredResponse } from "@/utils/phalaRes";
 import chainId from "@/constants/chainId";
 import { ethers } from "ethers";
 import { hyperlaneABI } from "@/abi/hyperlaneABI";
-import { alfaContract, fujiContract } from "@/constants/address";
+import { avaxContract, bscContract } from "@/constants/address";
+import { FusionSDK, NetworkEnum } from "@1inch/fusion-sdk";
+import axios from "axios";
+
+const sdk = new FusionSDK({
+  url: "https://api.1inch.dev/fusion-plus",
+  authKey: process.env.NEXT_PUBLIC_1INCH_API_KEY,
+  network: NetworkEnum.BINANCE,
+});
 
 type Message = {
   _id: string;
@@ -20,17 +28,15 @@ type Message = {
 };
 
 type HyperlaneSwapData = {
-  chain1: number;
-  chain2: number;
+  chain1: string;
+  chain2: string;
   amount: number;
   receiverAddress: string;
 };
 
-const celoProvider = new ethers.JsonRpcProvider(
-  "https://alfajores-forno.celo-testnet.org"
-);
-const fujiProvider = new ethers.JsonRpcProvider(
-  "https://ava-testnet.public.blastapi.io/ext/bc/C/rpc"
+const bnbProvider = new ethers.JsonRpcProvider("https://binance.llamarpc.com");
+const avaxProvider = new ethers.JsonRpcProvider(
+  "https://avax-pokt.nodies.app/ext/bc/C/rpc"
 );
 
 export default function Home() {
@@ -82,14 +88,15 @@ export default function Home() {
   };
 
   const hyperlaneWriteData = async (data: HyperlaneSwapData) => {
-    if (data.chain1 == 44787) {
+    console.log("Data", data);
+    if (data.chain1 == "binance") {
       const signer = new ethers.Wallet(
         process.env.NEXT_PUBLIC_PRIVATE_KEY || "",
-        celoProvider
+        bnbProvider
       );
 
       const contractWrite = new ethers.Contract(
-        alfaContract,
+        bscContract,
         hyperlaneABI,
         signer
       );
@@ -97,21 +104,22 @@ export default function Home() {
         ethers.getAddress(data.receiverAddress),
         32
       );
+      console.log("Amt", BigInt(data.amount));
       const writen = await contractWrite.transferRemote(
-        data.chain1,
+        43114,
         addressAsBytes32,
-        data.amount,
-        { value: 1000000 }
+        BigInt(data.amount),
+        { value: BigInt(1000000000) } // Add gas fee to the amount
       );
-      console.log("******* Written ********" + writen.hash);
+      console.log("******* Written ******** " + writen.hash);
     } else {
       const signer = new ethers.Wallet(
         process.env.NEXT_PUBLIC_PRIVATE_KEY || "",
-        fujiProvider
+        avaxProvider
       );
 
       const contractWrite = new ethers.Contract(
-        fujiContract,
+        avaxContract,
         hyperlaneABI,
         signer
       );
@@ -120,12 +128,12 @@ export default function Home() {
         32
       );
       const writen = await contractWrite.transferRemote(
-        data.chain2,
+        56,
         addressAsBytes32,
         data.amount,
-        { value: 1000000 }
+        { value: BigInt(1000000000) } // Add gas fee to the amount
       );
-      console.log("Written" + writen.hash);
+      console.log("Written " + writen.hash);
     }
   };
 
@@ -136,19 +144,70 @@ export default function Home() {
       dstChain: dstChainName,
       amount,
       receiverAddress,
+      path,
     } = data;
     const srcChain =
       chainId[srcChainName.toLowerCase() as keyof typeof chainId];
-    const dstChain =
-      chainId[dstChainName.toLowerCase() as keyof typeof chainId];
+    const dstChain = 43114;
     console.log(srcChain, dstChain);
 
-    hyperlaneWriteData({
-      chain1: srcChainName,
-      chain2: dstChainName,
-      amount: amount,
-      receiverAddress: receiverAddress ? receiverAddress : walletAddress,
-    });
+    if (path === "1inch") {
+      const params = new URLSearchParams({
+        srcChainId: srcChain.toString(),
+        dstChainId: dstChain.toString(),
+        fromTokenAddress: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+        toTokenAddress: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        amount: ethers.parseEther(amount.toString()).toString(),
+        fromAddress: walletAddress || "",
+      });
+
+      console.log(params);
+
+      try {
+        const response = await fetch(
+          `/api/1inch?srcChainId=${srcChain}&dstChainId=${dstChain}&fromTokenAddress=0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c&toTokenAddress=0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee&amount=${ethers.parseEther(
+            amount.toString()
+          )}&fromAddress=${walletAddress}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const quote = await response.json();
+        console.log("Receive quote:", quote);
+
+        const postBody = {
+          quote: {
+            ...quote.data,
+            quoteId: crypto.randomUUID(), // Generate a UUID for the quoteId
+          },
+          secretsHashList: [
+            "0x315b47a8c3780434b153667588db4ca628526e20000000000000000000000000",
+          ],
+        };
+
+        // Make the POST request
+        const buildResponse = await axios.post("/api/1inch", postBody);
+        console.log("Build response:", buildResponse.data);
+
+        // Handle the quote response
+      } catch (error) {
+        console.error("Error fetching quote:", error);
+        // Handle the error appropriately
+      }
+    } else {
+      console.log("I am in the hyperlane Path");
+      console.log(srcChainName, dstChainName, amount, receiverAddress);
+      hyperlaneWriteData({
+        chain1: srcChainName,
+        chain2: dstChainName,
+        amount: Number(amount),
+        receiverAddress: receiverAddress
+          ? receiverAddress
+          : "0xd346B126131576c1269E4f6c5f222a2bb858d30a",
+      });
+    }
   };
 
   return (
@@ -186,6 +245,7 @@ Amount : ${JSON.parse(message.text).amount}
 Receiver Address : ${JSON.parse(message.text).receiverAddress}
 Enable Estimate : ${JSON.parse(message.text).enableEstimate}
 Auction Start Amount : ${JSON.parse(message.text).auctionStartAmount}
+Path : ${JSON.parse(message.text).path}
                         `}</pre>
                     ) : (
                       <p className="text-sm">{message.text}</p>

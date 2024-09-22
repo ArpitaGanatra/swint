@@ -46,6 +46,17 @@ Example output:
     "auctionStartAmount": "100000000"
   }
 
+  Example input: "I want to swap 0.001 BNB on binance with ETH on base using 1inch"
+Example output: 
+  {
+    "srcChain": "binance",
+    "dstChain": "base",
+    "amount": "100000000",
+    "enableEstimate": "true",
+    "auctionStartAmount": "100000000",
+    "path": "1inch"
+  }
+
   User input: "${userInput}"
 
   IMPORTANT: ONLY JSON OUTPUT AND NOTHING ELSE FOR GODS SAKE PLEASE

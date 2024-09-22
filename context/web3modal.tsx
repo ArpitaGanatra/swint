@@ -8,6 +8,8 @@ import {
   base,
   sepolia,
   avalanche,
+  celo,
+  binanceSmartChain,
 } from "@reown/appkit/networks";
 
 // 1. Get projectId at https://cloud.reown.com
@@ -24,11 +26,43 @@ const metadata = {
   icons: ["https://avatars.mywebsite.com/"],
 };
 
+const fujiTestnet = {
+  id: "43113",
+  name: "Avalanche Fuji Testnet",
+  network: "fuji",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Avalanche",
+    symbol: "AVAX",
+  },
+  rpcUrls: {
+    default: { http: ["https://api.avax-test.network/ext/bc/C/rpc"] },
+  },
+  blockExplorers: {
+    default: { name: "SnowTrace", url: "https://testnet.snowtrace.io" },
+  },
+  testnet: true,
+  // Add the following properties
+  chainId: "43113",
+  chainNamespace: "eip155",
+  currency: "AVAX",
+  explorerUrl: "https://testnet.snowtrace.io",
+  rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc",
+};
+
 // 4. Create the AppKit instance
 createAppKit({
   adapters: [EthersAdapter],
   metadata: metadata,
-  networks: [mainnet, arbitrum, base, sepolia, avalanche],
+  networks: [
+    mainnet,
+    arbitrum,
+    base,
+    sepolia,
+    avalanche,
+    celo,
+    binanceSmartChain,
+  ],
   projectId,
   features: {
     analytics: true, // Optional - defaults to your Cloud configuration
